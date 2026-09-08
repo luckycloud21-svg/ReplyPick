@@ -165,22 +165,27 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
 
   try {
     const upstream = await fetch(
-      `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
       {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: 'application/json',
             responseSchema: geminiResponseSchema,
-            temperature: 0.8,
+            maxOutputTokens: 700,
           },
         }),
       },
     )
 
     if (!upstream.ok) {
+      const providerError = (await upstream.text()).slice(0, 1000)
+      console.error('[ReplyPick] Gemini API error', upstream.status, providerError)
       res.status(502).json({ error: 'ai_upstream_error' })
       return
     }
