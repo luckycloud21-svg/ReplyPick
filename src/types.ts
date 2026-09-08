@@ -16,4 +16,4 @@ export type ReplySet = {
   replies: Reply[]
 }
 
-export type Screen = 'home' | 'result' | 'history' | 'settings' | 'poll'
+export type Screen = 'home' | 'result' | 'history' | 'settings' | 'poll' | 'vote-result'
