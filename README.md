@@ -1,0 +1,31 @@
+# 답장픽 · ReplyPick
+
+카톡·문자·DM 답장을 10초 안에 고르는 앱인토스 비게임 미니앱입니다.
+
+## 구현 범위
+
+- 메시지 10~1,500자 입력 및 사용자 탭 시 클립보드 붙여넣기
+- 직장/친구/연인/가족/중고거래/기타 관계 선택
+- 공손하게/친근하게/짧게/단호하게/사과/거절 말투 선택
+- 답장 3개 생성, 원터치 복사, 즐겨찾기, 최근 기록
+- 원문을 포함하지 않는 A/B/C 공유 투표 화면과 딥링크 fallback
+- 결과 피드백, 민감 요청 완화, 로컬 데이터 삭제
+- 앱인토스 WebView SDK 3.3.0의 클립보드·공유·Toss 딥링크 연동
+
+API URL이 없으면 검수 가능한 로컬 답장 엔진으로 동작합니다. 운영 서버를 연결하려면 `VITE_REPLY_API_URL`을 설정하세요. 서버 응답은 기획서의 `{ replies: [{ text, label, reason }] }` 형식을 사용하며, 클라이언트는 6초 timeout·중복 검증·로컬 fallback을 적용합니다.
+
+## 실행
+
+```bash
+npm install
+npm run dev
+```
+
+## 웹/앱인토스 빌드
+
+```bash
+npm run build:web  # dist 생성
+npm run build      # dist 생성 + replaypick.ait 패키징
+```
+
+`apps-in-toss.config.ts`의 `appName`은 콘솔에 등록한 서비스 ID와 동일해야 합니다. 실제 출시 전에는 콘솔의 앱 아이콘/표시 이름/공유 OG 이미지와 서버리스 AI·TTL share 저장소를 연결하고, 샌드박스에서 클립보드·공유·양 OS 딥링크를 확인하세요.
