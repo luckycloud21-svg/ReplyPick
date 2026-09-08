@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { TossAds } from '@apps-in-toss/web-framework'
 import { copyText, decodeSharedReplies, readClipboard, sharePoll, trackEvent } from './lib/ait'
+import { initializeReplyPickAds, REPLY_PICK_AD_GROUP_ID } from './lib/ads'
 import { sanitizeMessage, validateMessage } from './lib/replyEngine'
 import { requestReplies } from './lib/replyApi'
 import { addHistory, buildHistorySet, clearLocalData, deleteHistory, formatDate, isFavorite, readFavorites, readHistory, readUsage, toggleFavorite, trackGeneration } from './lib/storage'
@@ -22,6 +24,10 @@ function App() {
   const [favoriteVersion, setFavoriteVersion] = useState(0)
   const [toast, setToast] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+
+  useEffect(() => {
+    void initializeReplyPickAds()
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -161,7 +167,48 @@ function ResultScreen({ result, onBack, onCopy, onFavorite, onShare, onRegenerat
     <div className="result-actions"><button className="share-button" onClick={onShare}><span className="share-icon"><Icon name="send" size={18} /></span><span><strong>친구에게 골라달라고 하기</strong><small>A/B/C 선택지를 공유해요</small></span><Icon name="arrow-right" size={18} /></button><button className="regenerate-button" onClick={onRegenerate}><Icon name="refresh" size={16} />다른 답장 3개 보기</button></div>
     <div className="safe-note"><Icon name="info" size={15} />원문은 저장하지 않고, 답장 선택지만 최근 기록에 남겨요.</div>
     <div className="feedback-box"><span>이번 답장 추천은 어땠나요?</span><div><button className={feedback === 'good' ? 'selected' : ''} onClick={() => { setFeedback('good'); trackEvent('feedback_submit', { rating: 'good' }); showToast('피드백 고마워요!') }} aria-label="좋아요">👍</button><button className={feedback === 'bad' ? 'selected' : ''} onClick={() => { setFeedback('bad'); trackEvent('feedback_submit', { rating: 'bad' }); showToast('더 자연스러운 답장을 만들게요.') }} aria-label="별로예요">👎</button></div></div>
+    <BannerAd />
   </main>
+}
+
+function BannerAd() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void initializeReplyPickAds().then((initialized) => {
+      if (active && initialized && TossAds.attachBanner.isSupported()) setReady(true)
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!ready || !containerRef.current) return
+
+    let attached: { destroy: () => void } | undefined
+    try {
+      attached = TossAds.attachBanner(REPLY_PICK_AD_GROUP_ID, containerRef.current, {
+        theme: 'light',
+        tone: 'grey',
+        variant: 'card',
+        callbacks: {
+          onAdRendered: () => trackEvent('ad_rendered'),
+          onAdViewable: () => trackEvent('ad_viewable'),
+          onAdClicked: () => trackEvent('ad_clicked'),
+          onNoFill: () => trackEvent('ad_no_fill'),
+          onAdFailedToRender: () => trackEvent('ad_failed'),
+        },
+      })
+    } catch {
+      setReady(false)
+    }
+
+    return () => attached?.destroy()
+  }, [ready])
+
+  if (!ready) return null
+  return <section className="ad-section" aria-label="광고"><span className="ad-label">AD</span><div ref={containerRef} className="ad-slot" /></section>
 }
 
 function ReplyCard({ reply, index, onCopy, onFavorite, favoriteVersion, recommended }: { reply: Reply; index: number; onCopy: (reply: Reply) => void; onFavorite: (reply: Reply) => void; favoriteVersion: number; recommended: boolean }) {
