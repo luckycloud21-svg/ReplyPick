@@ -14,7 +14,7 @@
 - 공유 화면에 질문과 답장 3개를 함께 표시하고, 친구의 선택 결과를 투표 결과 딥링크로 다시 공유
 - 앱인토스 WebView SDK 3.3.0의 클립보드·공유·Toss 딥링크 연동
 
-API URL이 없으면 검수 가능한 로컬 답장 엔진으로 동작합니다. 운영 서버를 연결하려면 `VITE_REPLY_API_URL`을 설정하세요. 서버 응답은 기획서의 `{ replies: [{ text, label, reason }] }` 형식을 사용하며, 클라이언트는 6초 timeout·중복 검증·로컬 fallback을 적용합니다.
+개발 환경에서만 API 없이 검수 가능한 로컬 답장 엔진을 사용합니다. 운영 빌드는 `VITE_REPLY_API_URL`이 없으면 AI 연결 오류를 표시해 규칙 기반 결과를 AI로 오인시키지 않습니다. 서버 응답은 기획서의 `{ replies: [{ text, label, reason }] }` 형식을 사용하며, 클라이언트는 6초 timeout·중복 검증을 적용합니다.
 
 ## 실행
 
@@ -31,6 +31,10 @@ npm run build      # dist 생성 + replaypick.ait 패키징
 ```
 
 `apps-in-toss.config.ts`의 `appName`은 콘솔에 등록한 서비스 ID와 동일해야 합니다. 실제 출시 전에는 콘솔의 앱 아이콘/표시 이름/공유 OG 이미지와 서버리스 AI·TTL share 저장소를 연결하고, 샌드박스에서 클립보드·공유·양 OS 딥링크를 확인하세요.
+
+## AI 서버 설정
+
+`api/v1/replies.ts`는 Vercel Functions에서 실행할 수 있는 Gemini API 엔드포인트입니다. Vercel 프로젝트에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`, `REPLY_API_ALLOW_ORIGIN`을 서버 환경 변수로 설정하고, 앱 빌드 시 `VITE_REPLY_API_URL=https://배포주소/api`를 주입하세요. API 키를 `VITE_` 변수나 앱 코드에 넣으면 안 됩니다.
 
 광고는 결과 화면 하단에서만 표시됩니다. 프로덕션에서는 `ait.v2.live.8e3c328ace9c4748`, 개발 환경에서는 앱인토스 테스트 배너 ID를 사용합니다. 앱인토스 콘솔 QR 테스트에서 배너 로드·클릭·뒤로가기를 확인하세요.
 

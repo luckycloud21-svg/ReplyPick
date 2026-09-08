@@ -59,15 +59,21 @@ function App() {
     setIsGenerating(true)
     trackEvent('generate_click', { relation, tone, regenerate })
     window.setTimeout(async () => {
-      const replies = await requestReplies(clean, relation, tone)
-      const set = buildHistorySet(clean, relation, tone, replies)
-      addHistory(set)
-      setHistory(readHistory())
-      setResult(set)
-      setScreen('result')
-      trackGeneration(regenerate)
-      trackEvent('generate_success')
-      setIsGenerating(false)
+      try {
+        const replies = await requestReplies(clean, relation, tone)
+        const set = buildHistorySet(clean, relation, tone, replies)
+        addHistory(set)
+        setHistory(readHistory())
+        setResult(set)
+        setScreen('result')
+        trackGeneration(regenerate)
+        trackEvent('generate_success', { source: import.meta.env.VITE_REPLY_API_URL ? 'ai' : 'local-dev' })
+      } catch {
+        trackEvent('generate_failure', { source: 'ai' })
+        showToast('AI 답장 연결에 실패했어요. 잠시 후 다시 시도해 주세요.')
+      } finally {
+        setIsGenerating(false)
+      }
     }, 480)
   }
 
@@ -164,7 +170,7 @@ function HomeScreen({ message, setMessage, relation, setRelation, tone, setTone,
       <div className="chip-grid tone-grid">{tones.map((item) => <button key={item} className={`choice-chip ${tone === item ? 'selected' : ''}`} onClick={() => setTone(item)}>{item}{tone === item && <Icon name="check" size={15} strokeWidth={2.5} />}</button>)}</div>
     </section>
     <button className="primary-button generate-button" disabled={!canGenerate || isGenerating} onClick={onGenerate}>{isGenerating ? <><span className="button-spinner" />답장 만드는 중...</> : <><Icon name="spark" size={19} />답장 3개 만들기</>}</button>
-    <div className="home-note"><Icon name="warning" size={15} />AI 답장은 참고용이에요. 보내기 전에 한 번 더 확인해 주세요.</div>
+    <div className="home-note"><Icon name="warning" size={15} />{import.meta.env.VITE_REPLY_API_URL ? 'AI가 만든 답장이에요. 보내기 전에 한 번 더 확인해 주세요.' : import.meta.env.DEV ? '현재 개발용 로컬 생성 모드예요. 운영에서는 AI API를 연결해 주세요.' : 'AI API 연결 설정이 필요해요.'}</div>
   </main>
 }
 

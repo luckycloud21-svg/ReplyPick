@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && ait build",
+    "build": "tsc -b && tsc -p tsconfig.server.json && vite build && ait build",
     "build:web": "tsc -b && vite build",
     "deploy": "ait deploy",
     "preview": "vite preview"
