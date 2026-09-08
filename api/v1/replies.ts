@@ -149,7 +149,8 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
     return
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash'
+  const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash'
+  const models = [...new Set([model, 'gemini-3.7-flash'])]
   const prompt = [
     '너는 한국어 메신저 답장 추천 서비스 ReplyPick의 답장 생성 AI야.',
     '사용자가 받은 메시지를 바탕으로 바로 보낼 수 있는 자연스러운 답장 3개를 만들어.',
@@ -164,28 +165,45 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
   ].join('\n')
 
   try {
-    const upstream = await fetch(
-      `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: geminiResponseSchema,
-            maxOutputTokens: 700,
-          },
-        }),
-      },
-    )
+    let upstream: Response | undefined
+    let providerStatus = 502
+    let providerError = ''
 
-    if (!upstream.ok) {
-      const providerError = (await upstream.text()).slice(0, 1000)
-      console.error('[ReplyPick] Gemini API error', upstream.status, providerError)
+    for (const candidateModel of models) {
+      const candidateResponse = await fetch(
+        `${GEMINI_API_BASE}/${encodeURIComponent(candidateModel)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: geminiResponseSchema,
+              maxOutputTokens: 700,
+            },
+          }),
+        },
+      )
+
+      if (candidateResponse.ok) {
+        upstream = candidateResponse
+        break
+      }
+
+      providerStatus = candidateResponse.status
+      providerError = (await candidateResponse.text()).slice(0, 1000)
+      console.error('[ReplyPick] Gemini API error', candidateModel, providerStatus, providerError)
+
+      // Gemini can temporarily return 429/5xx for a busy model. Try the stable
+      // fallback model before returning an error to the app.
+      if (![404, 429, 500, 502, 503, 504].includes(providerStatus)) break
+    }
+
+    if (!upstream) {
       let providerMessage = providerError
       try {
         const parsedError = JSON.parse(providerError) as { error?: { message?: unknown } }
@@ -195,7 +213,7 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
       }
       res.status(502).json({
         error: 'ai_upstream_error',
-        provider_status: upstream.status,
+        provider_status: providerStatus,
         provider_message: providerMessage.slice(0, 300),
       })
       return
