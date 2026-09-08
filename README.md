@@ -34,7 +34,7 @@ npm run build      # dist 생성 + replaypick.ait 패키징
 
 ## AI 서버 설정
 
-`api/v1/replies.ts`는 Vercel Functions에서 실행할 수 있는 Gemini API 엔드포인트입니다. Vercel 프로젝트에 `GEMINI_API_KEY`, 필요 시 `GEMINI_MODEL`, `REPLY_API_ALLOW_ORIGIN`을 서버 환경 변수로 설정하고, 앱 빌드 시 `VITE_REPLY_API_URL=https://배포주소/api`를 주입하세요. API 키를 `VITE_` 변수나 앱 코드에 넣으면 안 됩니다.
+`api/v1/replies.ts`는 Vercel Functions에서 실행할 수 있는 Gemini API 엔드포인트입니다. 서버는 `gemini-3.5-flash-lite` 모델만 사용하며, Vercel 프로젝트에 `GEMINI_API_KEY`와 `REPLY_API_ALLOW_ORIGIN`을 서버 환경 변수로 설정하고, 앱 빌드 시 `VITE_REPLY_API_URL=https://배포주소/api`를 주입하세요. API 키를 `VITE_` 변수나 앱 코드에 넣으면 안 됩니다.
 
 광고는 결과 화면 하단에서만 표시됩니다. 프로덕션에서는 `ait.v2.live.8e3c328ace9c4748`, 개발 환경에서는 앱인토스 테스트 배너 ID를 사용합니다. 앱인토스 콘솔 QR 테스트에서 배너 로드·클릭·뒤로가기를 확인하세요.
 
