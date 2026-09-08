@@ -6,3 +6,4 @@ dist/
 *.js
 !vite.config.ts
 !apps-in-toss.config.ts
+!src/vite-env.d.ts
