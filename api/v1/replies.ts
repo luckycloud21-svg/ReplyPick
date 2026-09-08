@@ -186,7 +186,18 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
     if (!upstream.ok) {
       const providerError = (await upstream.text()).slice(0, 1000)
       console.error('[ReplyPick] Gemini API error', upstream.status, providerError)
-      res.status(502).json({ error: 'ai_upstream_error' })
+      let providerMessage = providerError
+      try {
+        const parsedError = JSON.parse(providerError) as { error?: { message?: unknown } }
+        if (typeof parsedError.error?.message === 'string') providerMessage = parsedError.error.message
+      } catch {
+        // Keep the raw, truncated provider response for non-JSON errors.
+      }
+      res.status(502).json({
+        error: 'ai_upstream_error',
+        provider_status: upstream.status,
+        provider_message: providerMessage.slice(0, 300),
+      })
       return
     }
 
