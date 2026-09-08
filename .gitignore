@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.ait
+*.tsbuildinfo
+*.d.ts
+*.js
+!vite.config.ts
+!apps-in-toss.config.ts
