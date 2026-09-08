@@ -60,7 +60,7 @@ function App() {
     trackEvent('generate_click', { relation, tone, regenerate })
     window.setTimeout(async () => {
       const replies = await requestReplies(clean, relation, tone)
-      const set = buildHistorySet(relation, tone, replies)
+      const set = buildHistorySet(clean, relation, tone, replies)
       addHistory(set)
       setHistory(readHistory())
       setResult(set)
@@ -92,7 +92,7 @@ function App() {
 
   const handleShare = async () => {
     if (!result) return
-    const success = await sharePoll(message, result.replies)
+    const success = await sharePoll(result.message ?? message, result.replies)
     if (success) {
       trackEvent('poll_share')
       showToast('친구에게 선택지를 보냈어요.')
@@ -113,6 +113,7 @@ function App() {
 
   const openHistoryItem = (set: ReplySet) => {
     setResult(set)
+    setMessage(set.message ?? '')
     setRelation(set.relation)
     setTone(set.tone)
     setScreen('result')
@@ -152,7 +153,7 @@ function HomeScreen({ message, setMessage, relation, setRelation, tone, setTone,
     <section className="composer-card">
       <div className="section-label-row"><span className="section-label">받은 메시지</span><button className="paste-button" onClick={onPaste}><Icon name="copy" size={16} />붙여넣기</button></div>
       <textarea value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1500))} placeholder="상대방이 보낸 메시지를 여기에 붙여넣어 주세요." maxLength={1500} aria-label="받은 메시지 입력" />
-      <div className="textarea-footer"><span className={message.length > 0 && message.length < 10 ? 'count-warning' : ''}>{message.length.toLocaleString()} / 1,500</span><span><Icon name="info" size={14} />원문은 기본 저장하지 않아요</span></div>
+      <div className="textarea-footer"><span className={message.length > 0 && message.length < 10 ? 'count-warning' : ''}>{message.length.toLocaleString()} / 1,500</span><span><Icon name="info" size={14} />받은 메시지는 기록에 함께 저장돼요</span></div>
     </section>
     <section className="choice-section">
       <div className="section-label">상대는 누구인가요?</div>
@@ -174,7 +175,7 @@ function ResultScreen({ result, onBack, onCopy, onFavorite, onShare, onRegenerat
     <section className="result-heading"><div className="result-kicker"><span className="result-check"><Icon name="check" size={14} strokeWidth={2.8} /></span>답장 준비 완료</div><h1>바로 보내기 좋은<br /><em>답장 3개</em>예요.</h1><div className="result-meta"><span>{result.relation}</span><i /> <span>{result.tone}</span></div></section>
     <section className="reply-list">{result.replies.map((reply, index) => <ReplyCard key={reply.id} reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />)}</section>
     <div className="result-actions"><button className="share-button" onClick={onShare}><span className="share-icon"><Icon name="send" size={18} /></span><span><strong>친구에게 골라달라고 하기</strong><small>A/B/C 선택지를 공유해요</small></span><Icon name="arrow-right" size={18} /></button><button className="regenerate-button" onClick={onRegenerate}><Icon name="refresh" size={16} />다른 답장 3개 보기</button></div>
-    <div className="safe-note"><Icon name="info" size={15} />원문은 저장하지 않고, 답장 선택지만 최근 기록에 남겨요.</div>
+    <div className="safe-note"><Icon name="info" size={15} />받은 메시지와 답장 선택지를 최근 기록에 남겨요. 공유하면 친구에게도 보여요.</div>
     <div className="feedback-box"><span>이번 답장 추천은 어땠나요?</span><div><button className={feedback === 'good' ? 'selected' : ''} onClick={() => { setFeedback('good'); trackEvent('feedback_submit', { rating: 'good' }); showToast('피드백 고마워요!') }} aria-label="좋아요">👍</button><button className={feedback === 'bad' ? 'selected' : ''} onClick={() => { setFeedback('bad'); trackEvent('feedback_submit', { rating: 'bad' }); showToast('더 자연스러운 답장을 만들게요.') }} aria-label="별로예요">👎</button></div></div>
     <BannerAd />
   </main>
@@ -228,7 +229,7 @@ function ReplyCard({ reply, index, onCopy, onFavorite, favoriteVersion, recommen
 function HistoryScreen({ history, favorites, onBack, onOpen, onDelete, onFavorite, favoriteVersion }: { history: ReplySet[]; favorites: Reply[]; onBack: () => void; onOpen: (set: ReplySet) => void; onDelete: (id: string) => void; onFavorite: (reply: Reply) => void; favoriteVersion: number }) {
   void favoriteVersion
   const [tab, setTab] = useState<'recent' | 'favorite'>('recent')
-  return <main className="screen history-screen"><Header onBack={onBack}>기록</Header><section className="page-heading"><span className="eyebrow">MY REPLIES</span><h1>나의 답장 기록</h1><p>원문 없이 결과만 안전하게 남겨두었어요.</p></section><div className="tab-switch"><button className={tab === 'recent' ? 'active' : ''} onClick={() => setTab('recent')}><Icon name="clock" size={17} />최근 답장 <span>{history.length}</span></button><button className={tab === 'favorite' ? 'active' : ''} onClick={() => setTab('favorite')}><Icon name="heart" size={17} />즐겨찾기 <span>{favorites.length}</span></button></div>{tab === 'recent' ? <div className="history-list">{history.length ? history.map((set) => <button className="history-item" key={set.id} onClick={() => onOpen(set)}><div className="history-item-top"><span>{formatDate(set.createdAt)}</span><span>{set.relation} · {set.tone}</span><Icon name="arrow-right" size={17} /></div><p>{set.replies[0]?.text}</p><div className="history-dots"><span>A</span><span>B</span><span>C</span><button onClick={(event) => { event.stopPropagation(); onDelete(set.id) }} aria-label="기록 삭제"><Icon name="trash" size={15} /></button></div></button>) : <EmptyHistory text="아직 만든 답장이 없어요." />}</div> : <div className="favorite-list">{favorites.length ? favorites.map((reply) => <div className="favorite-item" key={reply.id}><span className="reply-letter letter-0">A</span><p>{reply.text}<small>{reply.reason}</small></p><button onClick={() => onFavorite(reply)} aria-label="즐겨찾기 해제"><Icon name="heart" size={19} /></button></div>) : <EmptyHistory text="마음에 드는 답장을 저장해 보세요." />}</div>}</main>
+  return <main className="screen history-screen"><Header onBack={onBack}>기록</Header><section className="page-heading"><span className="eyebrow">MY REPLIES</span><h1>나의 답장 기록</h1><p>받은 메시지와 답장 선택지를 함께 보관해요.</p></section><div className="tab-switch"><button className={tab === 'recent' ? 'active' : ''} onClick={() => setTab('recent')}><Icon name="clock" size={17} />최근 답장 <span>{history.length}</span></button><button className={tab === 'favorite' ? 'active' : ''} onClick={() => setTab('favorite')}><Icon name="heart" size={17} />즐겨찾기 <span>{favorites.length}</span></button></div>{tab === 'recent' ? <div className="history-list">{history.length ? history.map((set) => <button className="history-item" key={set.id} onClick={() => onOpen(set)}><div className="history-item-top"><span>{formatDate(set.createdAt)}</span><span>{set.relation} · {set.tone}</span><Icon name="arrow-right" size={17} /></div><p className="history-question">{set.message || '받은 메시지가 없는 이전 기록이에요.'}</p><p className="history-reply">{set.replies[0]?.text}</p><div className="history-dots"><span>A</span><span>B</span><span>C</span><button onClick={(event) => { event.stopPropagation(); onDelete(set.id) }} aria-label="기록 삭제"><Icon name="trash" size={15} /></button></div></button>) : <EmptyHistory text="아직 만든 답장이 없어요." />}</div> : <div className="favorite-list">{favorites.length ? favorites.map((reply) => <div className="favorite-item" key={reply.id}><span className="reply-letter letter-0">A</span><p>{reply.text}<small>{reply.reason}</small></p><button onClick={() => onFavorite(reply)} aria-label="즐겨찾기 해제"><Icon name="heart" size={19} /></button></div>) : <EmptyHistory text="마음에 드는 답장을 저장해 보세요." />}</div>}</main>
 }
 
 function EmptyHistory({ text }: { text: string }) {
@@ -237,7 +238,7 @@ function EmptyHistory({ text }: { text: string }) {
 
 function SettingsScreen({ onBack, onClear }: { onBack: () => void; onClear: () => void }) {
   const [confirm, setConfirm] = useState(false)
-  return <main className="screen settings-screen"><Header onBack={onBack}>설정</Header><section className="page-heading"><span className="eyebrow">REPLYPICK</span><h1>가볍게, 안전하게</h1><p>로그인 없이 이 기기에만 답장을 보관해요.</p></section><div className="settings-card"><div className="settings-row"><span className="settings-icon blue"><Icon name="warning" size={19} /></span><div><strong>개인정보 안내</strong><p>입력한 원문은 서버나 기록에 저장하지 않아요. 답장 선택지만 이 기기에 보관돼요.</p></div></div><div className="settings-row"><span className="settings-icon green"><Icon name="check" size={19} /></span><div><strong>자동 전송하지 않아요</strong><p>답장을 직접 확인하고 원하는 메신저에 붙여넣는 방식이에요.</p></div></div></div><section className="danger-section"><div className="section-label">데이터 관리</div>{confirm ? <div className="confirm-card"><strong>저장된 기록을 모두 지울까요?</strong><p>최근 답장과 즐겨찾기가 이 기기에서 삭제돼요.</p><div><button className="ghost-button" onClick={() => setConfirm(false)}>취소</button><button className="danger-button" onClick={() => { onClear(); setConfirm(false) }}>모두 지우기</button></div></div> : <button className="settings-action" onClick={() => setConfirm(true)}><span><Icon name="trash" size={18} />저장된 기록 모두 지우기</span><Icon name="arrow-right" size={17} /></button>}</section><div className="version-note">ReplyPick v0.1 · 앱인토스 비게임 미니앱</div></main>
+  return <main className="screen settings-screen"><Header onBack={onBack}>설정</Header><section className="page-heading"><span className="eyebrow">REPLYPICK</span><h1>가볍게, 안전하게</h1><p>로그인 없이 이 기기에만 답장을 보관해요.</p></section><div className="settings-card"><div className="settings-row"><span className="settings-icon blue"><Icon name="warning" size={19} /></span><div><strong>개인정보 안내</strong><p>받은 메시지와 답장은 이 기기에만 기록돼요. 서버 로그에는 원문을 남기지 않는 구조예요.</p></div></div><div className="settings-row"><span className="settings-icon green"><Icon name="check" size={19} /></span><div><strong>자동 전송하지 않아요</strong><p>답장을 직접 확인하고 원하는 메신저에 붙여넣는 방식이에요.</p></div></div></div><section className="danger-section"><div className="section-label">데이터 관리</div>{confirm ? <div className="confirm-card"><strong>저장된 기록을 모두 지울까요?</strong><p>최근 답장과 즐겨찾기가 이 기기에서 삭제돼요.</p><div><button className="ghost-button" onClick={() => setConfirm(false)}>취소</button><button className="danger-button" onClick={() => { onClear(); setConfirm(false) }}>모두 지우기</button></div></div> : <button className="settings-action" onClick={() => setConfirm(true)}><span><Icon name="trash" size={18} />저장된 기록 모두 지우기</span><Icon name="arrow-right" size={17} /></button>}</section><div className="version-note">ReplyPick v0.1 · 앱인토스 비게임 미니앱</div></main>
 }
 
 function PollScreen({ question, replies, onStart, onCopy, onShareVote }: { question: string; replies: Reply[]; onStart: () => void; onCopy: (reply: Reply) => void; onShareVote: (question: string, reply: Reply) => Promise<boolean> }) {

@@ -11,6 +11,7 @@ export type Reply = {
 export type ReplySet = {
   id: string
   createdAt: number
+  message?: string
   relation: Relation
   tone: Tone
   replies: Reply[]

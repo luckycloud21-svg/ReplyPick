@@ -84,6 +84,6 @@ export function formatDate(timestamp: number) {
   return date.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })
 }
 
-export function buildHistorySet(relation: Relation, tone: Tone, replies: Reply[]): ReplySet {
-  return { id: `set-${Date.now()}`, createdAt: Date.now(), relation, tone, replies }
+export function buildHistorySet(message: string, relation: Relation, tone: Tone, replies: Reply[]): ReplySet {
+  return { id: `set-${Date.now()}`, createdAt: Date.now(), message: message.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 1500), relation, tone, replies }
 }
