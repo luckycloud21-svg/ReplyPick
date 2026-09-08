@@ -150,7 +150,12 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
   }
 
   const model = process.env.GEMINI_MODEL || 'gemini-3.7-flash'
-  const models = [...new Set([model, 'gemini-3.7-flash'])]
+  const models = [...new Set([
+    model,
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite',
+  ])]
   const prompt = [
     '너는 한국어 메신저 답장 추천 서비스 ReplyPick의 답장 생성 AI야.',
     '사용자가 받은 메시지를 바탕으로 바로 보낼 수 있는 자연스러운 답장 3개를 만들어.',
