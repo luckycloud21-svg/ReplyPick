@@ -1,9 +1,10 @@
 import type { Relation, Reply, Tone } from '../types'
 
 const removeControls = (message: string) => message.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim()
+const MAX_MESSAGE_LENGTH = 3000
 
 export function sanitizeMessage(message: string) {
-  return removeControls(message).slice(0, 1500)
+  return removeControls(message).slice(0, MAX_MESSAGE_LENGTH)
 }
 
 export function validateMessage(message: string) {

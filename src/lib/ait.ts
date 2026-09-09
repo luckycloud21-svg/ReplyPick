@@ -61,7 +61,7 @@ function decodePayload(encoded: string | null): unknown | null {
 }
 
 function normalizeQuestion(question: string) {
-  return question.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 1500) || '이 답장 후보 중 어떤 게 가장 자연스러울까?'
+  return question.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 3000) || '이 답장 후보 중 어떤 게 가장 자연스러울까?'
 }
 
 function normalizeReplies(replies: Reply[]): Reply[] {

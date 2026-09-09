@@ -28,7 +28,7 @@ type GeminiResponse = {
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const GEMINI_MODEL = 'gemini-3.5-flash-lite'
-const MAX_MESSAGE_LENGTH = 1500
+const MAX_MESSAGE_LENGTH = 3000
 
 const geminiResponseSchema = {
   type: 'OBJECT',
