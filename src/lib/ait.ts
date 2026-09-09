@@ -1,5 +1,13 @@
-import { Environment, getClipboardText, setClipboardText, Share, share } from '@apps-in-toss/web-framework'
 import type { Reply } from '../types'
+
+type TossRuntime = typeof import('@apps-in-toss/web-framework')
+
+let tossRuntimePromise: Promise<TossRuntime> | null = null
+
+function loadTossRuntime() {
+  if (!tossRuntimePromise) tossRuntimePromise = import('@apps-in-toss/web-framework')
+  return tossRuntimePromise
+}
 
 export type SharedPoll = {
   question: string
@@ -16,6 +24,7 @@ const canUseNavigatorClipboard = () => typeof navigator !== 'undefined' && Boole
 
 export async function readClipboard(): Promise<string> {
   try {
+    const { getClipboardText } = await loadTossRuntime()
     const text = await getClipboardText()
     return text || ''
   } catch {
@@ -32,6 +41,7 @@ export async function readClipboard(): Promise<string> {
 
 export async function copyText(text: string): Promise<boolean> {
   try {
+    const { setClipboardText } = await loadTossRuntime()
     await setClipboardText(text)
     return true
   } catch {
@@ -51,8 +61,9 @@ function encodePayload(payload: unknown) {
   return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))))
 }
 
-function createDeepLink(route: 'poll' | 'vote-result', data: string) {
+async function createDeepLink(route: 'poll' | 'vote-result', data: string) {
   try {
+    const { Environment } = await loadTossRuntime()
     if (Environment.environment === 'sandbox' && Environment.deploymentId !== 'local') {
       const queryParams = encodeURIComponent(JSON.stringify({ data }))
       return 'intoss-private://appsintoss/' + route + '?_deploymentId=' + encodeURIComponent(Environment.deploymentId) + '&queryParams=' + queryParams
@@ -65,6 +76,7 @@ function createDeepLink(route: 'poll' | 'vote-result', data: string) {
 
 async function createShareTarget(path: string) {
   if (path.startsWith('intoss-private://')) return path
+  const { Share } = await loadTossRuntime()
   return Share.createLink({ path })
 }
 
@@ -93,9 +105,10 @@ function normalizeReplies(replies: Reply[]): Reply[] {
 export async function sharePoll(question: string, replies: Reply[]): Promise<boolean> {
   const payload = { question: normalizeQuestion(question), replies: normalizeReplies(replies) }
   const data = encodePayload(payload)
-  const path = createDeepLink('poll', data)
   try {
+    const path = await createDeepLink('poll', data)
     const link = await createShareTarget(path)
+    const { share } = await loadTossRuntime()
     await share({ message: `답장픽 질문이에요. 친구라면 어떤 답장이 좋을까요?\n\n질문: ${payload.question}\n\n${link}` })
     return true
   } catch {
@@ -115,9 +128,10 @@ export async function sharePoll(question: string, replies: Reply[]): Promise<boo
 export async function shareVote(question: string, reply: Reply, index = 0): Promise<boolean> {
   const payload = { question: normalizeQuestion(question), reply: normalizeReplies([reply])[0], index }
   const data = encodePayload(payload)
-  const path = createDeepLink('vote-result', data)
   try {
+    const path = await createDeepLink('vote-result', data)
     const link = await createShareTarget(path)
+    const { share } = await loadTossRuntime()
     await share({ message: `답장픽 투표 결과를 보냈어요.\n\n질문: ${payload.question}\n선택: ${payload.reply.text}\n\n${link}` })
     return true
   } catch {

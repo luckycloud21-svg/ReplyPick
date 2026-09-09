@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { TossAds } from '@apps-in-toss/web-framework'
 import { copyText, decodeSharedPoll, decodeSharedVote, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
-import { initializeReplyPickAds, REPLY_PICK_AD_GROUP_ID } from './lib/ads'
 import { sanitizeMessage, validateMessage } from './lib/replyEngine'
 import { requestReplies } from './lib/replyApi'
 import { addHistory, buildHistorySet, clearLocalData, deleteHistory, formatDate, isFavorite, readFavorites, readHistory, readUsage, toggleFavorite, trackGeneration } from './lib/storage'
@@ -26,10 +24,6 @@ function App() {
   const [favoriteVersion, setFavoriteVersion] = useState(0)
   const [toast, setToast] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-
-  useEffect(() => {
-    void initializeReplyPickAds()
-  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -187,24 +181,40 @@ function ResultScreen({ result, onBack, onCopy, onFavorite, onShare, onRegenerat
   </main>
 }
 
+type TossRuntime = typeof import('@apps-in-toss/web-framework')
+
 function BannerAd() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
+  const [adGroupId, setAdGroupId] = useState<string | null>(null)
+  const [tossRuntime, setTossRuntime] = useState<TossRuntime | null>(null)
 
   useEffect(() => {
     let active = true
-    void initializeReplyPickAds().then((initialized) => {
-      if (active && initialized && TossAds.attachBanner.isSupported()) setReady(true)
-    })
+    void import('./lib/ads')
+      .then(async (ads) => {
+        const initialized = await ads.initializeReplyPickAds()
+        if (!active || !initialized) return
+        const runtime = await import('@apps-in-toss/web-framework')
+        if (active && runtime.TossAds.attachBanner.isSupported()) {
+          setAdGroupId(ads.REPLY_PICK_AD_GROUP_ID)
+          setTossRuntime(runtime)
+          setReady(true)
+        }
+      })
+      .catch(() => {
+        if (active) setReady(false)
+      })
     return () => { active = false }
   }, [])
 
   useEffect(() => {
-    if (!ready || !containerRef.current) return
+    if (!ready || !adGroupId || !tossRuntime || !containerRef.current) return
+    const { TossAds } = tossRuntime
 
     let attached: { destroy: () => void } | undefined
     try {
-      attached = TossAds.attachBanner(REPLY_PICK_AD_GROUP_ID, containerRef.current, {
+      attached = TossAds.attachBanner(adGroupId, containerRef.current, {
         theme: 'light',
         tone: 'grey',
         variant: 'card',
@@ -221,7 +231,7 @@ function BannerAd() {
     }
 
     return () => attached?.destroy()
-  }, [ready])
+  }, [ready, adGroupId, tossRuntime])
 
   if (!ready) return null
   return <section className="ad-section" aria-label="광고"><span className="ad-label">AD</span><div ref={containerRef} className="ad-slot" /></section>
