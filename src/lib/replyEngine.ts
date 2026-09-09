@@ -9,7 +9,6 @@ export function sanitizeMessage(message: string) {
 export function validateMessage(message: string) {
   const clean = sanitizeMessage(message)
   if (!clean) return '받은 메시지를 붙여넣어 주세요.'
-  if (clean.length < 10) return '메시지를 10자 이상 입력해 주세요.'
   return ''
 }
 

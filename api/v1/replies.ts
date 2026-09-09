@@ -140,7 +140,7 @@ export default async function handler(req: ServerRequest, res: ServerResponse) {
   const relation = cleanText(body.relation, 30)
   const tone = cleanText(body.tone, 30)
 
-  if (message.length < 10 || !relation || !tone) {
+  if (!message || !relation || !tone) {
     res.status(400).json({ error: 'invalid_input' })
     return
   }

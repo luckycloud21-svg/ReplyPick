@@ -148,9 +148,9 @@ function Header({ children, onBack, action }: { children?: React.ReactNode; onBa
 }
 
 function HomeScreen({ message, setMessage, relation, setRelation, tone, setTone, onPaste, onGenerate, isGenerating }: { message: string; setMessage: (value: string) => void; relation: Relation; setRelation: (value: Relation) => void; tone: Tone; setTone: (value: Tone) => void; onPaste: () => void; onGenerate: () => void; isGenerating: boolean }) {
-  const canGenerate = message.trim().length >= 10
+  const canGenerate = message.trim().length >= 1
   return <main className="screen home-screen">
-    <Header action={<button className="text-button top-help" onClick={() => window.alert('받은 메시지를 10자 이상 붙여넣고, 관계와 말투를 고르면 바로 보낼 답장 3개를 만들어요.')}>도움말</button>} />
+    <Header action={<button className="text-button top-help" onClick={() => window.alert('받은 메시지를 1자 이상 붙여넣고, 관계와 말투를 고르면 바로 보낼 답장 3개를 만들어요.')}>도움말</button>} />
     <section className="hero-section">
       <div className="eyebrow"><span className="live-dot" />10초 답장 도우미</div>
       <h1>뭐라고 답하지?<br /><em>10초면 끝나요.</em></h1>
@@ -159,7 +159,7 @@ function HomeScreen({ message, setMessage, relation, setRelation, tone, setTone,
     <section className="composer-card">
       <div className="section-label-row"><span className="section-label">받은 메시지</span><button className="paste-button" onClick={onPaste}><Icon name="copy" size={16} />붙여넣기</button></div>
       <textarea value={message} onChange={(event) => setMessage(event.target.value.slice(0, 1500))} placeholder="상대방이 보낸 메시지를 여기에 붙여넣어 주세요." maxLength={1500} aria-label="받은 메시지 입력" />
-      <div className="textarea-footer"><span className={message.length > 0 && message.length < 10 ? 'count-warning' : ''}>{message.length.toLocaleString()} / 1,500</span><span><Icon name="info" size={14} />받은 메시지는 기록에 함께 저장돼요</span></div>
+      <div className="textarea-footer"><span>{message.length.toLocaleString()} / 1,500</span><span><Icon name="info" size={14} />받은 메시지는 기록에 함께 저장돼요</span></div>
     </section>
     <section className="choice-section">
       <div className="section-label">상대는 누구인가요?</div>
