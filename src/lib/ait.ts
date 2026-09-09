@@ -1,4 +1,4 @@
-import { getClipboardText, getTossShareLink, setClipboardText, share } from '@apps-in-toss/web-framework'
+import { Environment, getClipboardText, setClipboardText, Share, share } from '@apps-in-toss/web-framework'
 import type { Reply } from '../types'
 
 export type SharedPoll = {
@@ -51,6 +51,23 @@ function encodePayload(payload: unknown) {
   return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))))
 }
 
+function createDeepLink(route: 'poll' | 'vote-result', data: string) {
+  try {
+    if (Environment.environment === 'sandbox' && Environment.deploymentId !== 'local') {
+      const queryParams = encodeURIComponent(JSON.stringify({ data }))
+      return 'intoss-private://appsintoss/' + route + '?_deploymentId=' + encodeURIComponent(Environment.deploymentId) + '&queryParams=' + queryParams
+    }
+  } catch {
+    // 일반 브라우저에서는 앱인토스 환경 정보를 읽을 수 없으므로 정식 링크를 사용합니다.
+  }
+  return 'intoss://replaypick/' + route + '?data=' + data
+}
+
+async function createShareTarget(path: string) {
+  if (path.startsWith('intoss-private://')) return path
+  return Share.createLink({ path })
+}
+
 function decodePayload(encoded: string | null): unknown | null {
   if (!encoded) return null
   try {
@@ -76,9 +93,9 @@ function normalizeReplies(replies: Reply[]): Reply[] {
 export async function sharePoll(question: string, replies: Reply[]): Promise<boolean> {
   const payload = { question: normalizeQuestion(question), replies: normalizeReplies(replies) }
   const data = encodePayload(payload)
-  const path = `intoss://replaypick/poll?data=${data}`
+  const path = createDeepLink('poll', data)
   try {
-    const link = await getTossShareLink(path)
+    const link = await createShareTarget(path)
     await share({ message: `답장픽 질문이에요. 친구라면 어떤 답장이 좋을까요?\n\n질문: ${payload.question}\n\n${link}` })
     return true
   } catch {
@@ -98,9 +115,9 @@ export async function sharePoll(question: string, replies: Reply[]): Promise<boo
 export async function shareVote(question: string, reply: Reply, index = 0): Promise<boolean> {
   const payload = { question: normalizeQuestion(question), reply: normalizeReplies([reply])[0], index }
   const data = encodePayload(payload)
-  const path = `intoss://replaypick/vote-result?data=${data}`
+  const path = createDeepLink('vote-result', data)
   try {
-    const link = await getTossShareLink(path)
+    const link = await createShareTarget(path)
     await share({ message: `답장픽 투표 결과를 보냈어요.\n\n질문: ${payload.question}\n선택: ${payload.reply.text}\n\n${link}` })
     return true
   } catch {
@@ -130,6 +147,22 @@ export function decodeSharedPoll(encoded: string | null): SharedPoll | null {
   if (typeof value.question !== 'string' || !Array.isArray(value.replies)) return null
   const replies = normalizeReplies(value.replies as Reply[])
   return replies.length === 3 ? { question: normalizeQuestion(value.question), replies } : null
+}
+
+export function getShareQuery() {
+  const query = new URLSearchParams(window.location.search)
+  if (query.get('data')) return query
+
+  const encodedParams = query.get('queryParams')
+  if (!encodedParams) return query
+
+  try {
+    const params = JSON.parse(encodedParams) as { data?: unknown }
+    if (typeof params.data === 'string') query.set('data', params.data)
+  } catch {
+    // 잘못된 테스트 스킴 파라미터는 일반 진입으로 처리합니다.
+  }
+  return query
 }
 
 export function decodeSharedVote(encoded: string | null): SharedVote | null {

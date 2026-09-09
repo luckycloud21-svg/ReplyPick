@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { TossAds } from '@apps-in-toss/web-framework'
-import { copyText, decodeSharedPoll, decodeSharedVote, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
+import { copyText, decodeSharedPoll, decodeSharedVote, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
 import { initializeReplyPickAds, REPLY_PICK_AD_GROUP_ID } from './lib/ads'
 import { sanitizeMessage, validateMessage } from './lib/replyEngine'
@@ -14,7 +14,7 @@ const relations: Relation[] = ['직장', '친구', '연인', '가족', '중고�
 const tones: Tone[] = ['공손하게', '친근하게', '짧게', '단호하게', '사과', '거절']
 
 function App() {
-  const query = useMemo(() => new URLSearchParams(window.location.search), [])
+  const query = useMemo(() => getShareQuery(), [])
   const sharedPoll = useMemo(() => decodeSharedPoll(query.get('data')), [query])
   const sharedVote = useMemo(() => decodeSharedVote(query.get('data')), [query])
   const [screen, setScreen] = useState<Screen>(sharedVote ? 'vote-result' : sharedPoll ? 'poll' : 'home')
