@@ -1,4 +1,5 @@
 import type { Reply } from '../types'
+import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate'
 
 type TossRuntime = typeof import('@apps-in-toss/web-framework')
 
@@ -60,12 +61,12 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 function encodePayload(payload: unknown) {
-  const bytes = new TextEncoder().encode(JSON.stringify(payload))
+  const bytes = deflateSync(strToU8(JSON.stringify(payload)), { level: 9 })
   let binary = ''
   for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
   }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+  return 'z.' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
 function isPrivateEnvironment(runtime: TossRuntime) {
@@ -100,11 +101,13 @@ function decodePayload(encoded: string | null): unknown | null {
   if (!encoded) return null
   try {
     const decoded = decodeURIComponent(encoded)
-    const base64 = decoded.replace(/-/g, '+').replace(/_/g, '/')
+    const compressed = decoded.startsWith('z.')
+    const base64 = (compressed ? decoded.slice(2) : decoded).replace(/-/g, '+').replace(/_/g, '/')
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
     const binary = atob(padded)
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
-    return JSON.parse(new TextDecoder().decode(bytes))
+    if (compressed) return JSON.parse(strFromU8(inflateSync(bytes)))
+    return JSON.parse(strFromU8(bytes))
   } catch {
     try {
       // Legacy links used URI-encoded standard base64 and are kept readable.
