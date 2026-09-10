@@ -20,6 +20,8 @@ export type SharedVote = {
   index: number
 }
 
+const SHARE_APP_NAME = 'replaypick'
+
 const canUseNavigatorClipboard = () => typeof navigator !== 'undefined' && Boolean(navigator.clipboard)
 
 export async function readClipboard(): Promise<string> {
@@ -58,20 +60,34 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 function encodePayload(payload: unknown) {
-  return encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))))
+  const bytes = new TextEncoder().encode(JSON.stringify(payload))
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function isPrivateEnvironment(runtime: TossRuntime) {
+  const { Environment } = runtime
+  const initialURL = Environment.initialURL || ''
+  return Environment.environment === 'sandbox'
+    || initialURL.startsWith('intoss-private://')
+    || initialURL.includes('.private-apps.tossmini.com')
 }
 
 async function createDeepLink(route: 'poll' | 'vote-result', data: string) {
   try {
-    const { Environment } = await loadTossRuntime()
-    if (Environment.environment === 'sandbox' && Environment.deploymentId !== 'local') {
-      const queryParams = encodeURIComponent(JSON.stringify({ data }))
-      return 'intoss-private://appsintoss/' + route + '?_deploymentId=' + encodeURIComponent(Environment.deploymentId) + '&queryParams=' + queryParams
+    const runtime = await loadTossRuntime()
+    const { Environment } = runtime
+    if (isPrivateEnvironment(runtime) && Environment.deploymentId !== 'local') {
+      const queryParams = encodeURIComponent(JSON.stringify({ screen: route, data }))
+      return 'intoss-private://appsintoss?_deploymentId=' + encodeURIComponent(Environment.deploymentId) + '&queryParams=' + queryParams
     }
   } catch {
     // 일반 브라우저에서는 앱인토스 환경 정보를 읽을 수 없으므로 정식 링크를 사용합니다.
   }
-  return 'intoss://replaypick/' + route + '?data=' + data
+  return 'intoss://' + SHARE_APP_NAME + '?screen=' + encodeURIComponent(route) + '&data=' + data
 }
 
 async function createShareTarget(path: string) {
@@ -83,9 +99,19 @@ async function createShareTarget(path: string) {
 function decodePayload(encoded: string | null): unknown | null {
   if (!encoded) return null
   try {
-    return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(encoded)))))
+    const decoded = decodeURIComponent(encoded)
+    const base64 = decoded.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes))
   } catch {
-    return null
+    try {
+      // Legacy links used URI-encoded standard base64 and are kept readable.
+      return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(encoded)))))
+    } catch {
+      return null
+    }
   }
 }
 
@@ -94,12 +120,27 @@ function normalizeQuestion(question: string) {
 }
 
 function normalizeReplies(replies: Reply[]): Reply[] {
-  return replies.slice(0, 3).map((reply, index) => ({
-    id: reply.id || `shared-${index}-${reply.text.slice(0, 8)}`,
-    text: reply.text.slice(0, 240),
-    label: reply.label.slice(0, 40),
-    reason: reply.reason.slice(0, 100),
-  }))
+  return replies.slice(0, 3).flatMap((reply, index) => {
+    if (!reply || typeof reply !== 'object') return []
+    const text = typeof reply.text === 'string' ? reply.text.trim().slice(0, 240) : ''
+    if (!text) return []
+    const label = typeof reply.label === 'string' ? reply.label.slice(0, 40) : ''
+    const reason = typeof reply.reason === 'string' ? reply.reason.slice(0, 100) : ''
+    return [{
+      id: typeof reply.id === 'string' && reply.id ? reply.id : `shared-${index}-${text.slice(0, 8)}`,
+      text,
+      label,
+      reason,
+    }]
+  })
+}
+
+function createBrowserShareURL(route: 'poll' | 'vote-result', data: string) {
+  const url = new URL(window.location.href)
+  url.pathname = '/'
+  url.search = `screen=${encodeURIComponent(route)}&data=${data}`
+  url.hash = ''
+  return url.toString()
 }
 
 export async function sharePoll(question: string, replies: Reply[]): Promise<boolean> {
@@ -112,7 +153,7 @@ export async function sharePoll(question: string, replies: Reply[]): Promise<boo
     await share({ message: `답장픽 질문이에요. 친구라면 어떤 답장이 좋을까요?\n\n질문: ${payload.question}\n\n${link}` })
     return true
   } catch {
-    const fallback = `${window.location.origin}${window.location.pathname}?screen=poll&data=${data}`
+    const fallback = createBrowserShareURL('poll', data)
     try {
       if (typeof navigator.share === 'function') {
         await navigator.share({ title: '답장픽 질문', text: `질문: ${payload.question}`, url: fallback })
@@ -135,7 +176,7 @@ export async function shareVote(question: string, reply: Reply, index = 0): Prom
     await share({ message: `답장픽 투표 결과를 보냈어요.\n\n질문: ${payload.question}\n선택: ${payload.reply.text}\n\n${link}` })
     return true
   } catch {
-    const fallback = `${window.location.origin}${window.location.pathname}?screen=vote-result&data=${data}`
+    const fallback = createBrowserShareURL('vote-result', data)
     try {
       if (typeof navigator.share === 'function') {
         await navigator.share({ title: '답장픽 투표 결과', text: `선택한 답장: ${payload.reply.text}`, url: fallback })
@@ -163,20 +204,65 @@ export function decodeSharedPoll(encoded: string | null): SharedPoll | null {
   return replies.length === 3 ? { question: normalizeQuestion(value.question), replies } : null
 }
 
-export function getShareQuery() {
-  const query = new URLSearchParams(window.location.search)
-  if (query.get('data')) return query
+function queryFromURL(source: string) {
+  try {
+    return new URL(source, window.location.origin).searchParams
+  } catch {
+    return new URLSearchParams(source.startsWith('?') ? source.slice(1) : source)
+  }
+}
+
+function mergeNestedShareQuery(query: URLSearchParams, depth = 0): URLSearchParams {
+  if (depth > 2) return query
 
   const encodedParams = query.get('queryParams')
-  if (!encodedParams) return query
+  if (encodedParams) {
+    try {
+      const params = JSON.parse(encodedParams) as { data?: unknown; screen?: unknown }
+      if (typeof params.data === 'string') query.set('data', params.data)
+      if (typeof params.screen === 'string') query.set('screen', params.screen)
+    } catch {
+      // 잘못된 테스트 스킴 파라미터는 일반 진입으로 처리합니다.
+    }
+  }
 
-  try {
-    const params = JSON.parse(encodedParams) as { data?: unknown }
-    if (typeof params.data === 'string') query.set('data', params.data)
-  } catch {
-    // 잘못된 테스트 스킴 파라미터는 일반 진입으로 처리합니다.
+  const nestedLink = query.get('deep_link_value') || query.get('af_dp')
+  if (!query.get('data') && nestedLink) {
+    const nestedQuery = queryFromURL(nestedLink)
+    for (const [key, value] of nestedQuery.entries()) {
+      if (!query.has(key)) query.set(key, value)
+    }
+    return mergeNestedShareQuery(query, depth + 1)
   }
   return query
+}
+
+export function getShareQuery(source = window.location.href) {
+  const query = mergeNestedShareQuery(queryFromURL(source))
+  if (query.get('data')) return query
+
+  const hash = typeof window !== 'undefined' ? window.location.hash : ''
+  if (hash.startsWith('#')) {
+    const hashQuery = mergeNestedShareQuery(queryFromURL(hash.slice(1)))
+    for (const [key, value] of hashQuery.entries()) {
+      if (!query.has(key)) query.set(key, value)
+    }
+  }
+  return query
+}
+
+export async function getInitialShareQuery() {
+  const current = getShareQuery()
+  if (current.get('data')) return current
+
+  try {
+    const { Environment } = await loadTossRuntime()
+    const initial = getShareQuery(Environment.initialURL)
+    if (initial.get('data')) return initial
+  } catch {
+    // 일반 브라우저에서는 Environment.initialURL을 사용할 수 없습니다.
+  }
+  return current
 }
 
 export function decodeSharedVote(encoded: string | null): SharedVote | null {

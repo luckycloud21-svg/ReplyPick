@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { copyText, decodeSharedPoll, decodeSharedVote, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
+import { copyText, decodeSharedPoll, decodeSharedVote, getInitialShareQuery, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
 import { sanitizeMessage, validateMessage } from './lib/replyEngine'
 import { requestReplies } from './lib/replyApi'
@@ -12,7 +12,7 @@ const relations: Relation[] = ['직장', '친구', '연인', '가족', '중고�
 const tones: Tone[] = ['공손하게', '친근하게', '짧게', '단호하게', '사과', '거절']
 
 function App() {
-  const query = useMemo(() => getShareQuery(), [])
+  const [query, setQuery] = useState(() => getShareQuery())
   const sharedPoll = useMemo(() => decodeSharedPoll(query.get('data')), [query])
   const sharedVote = useMemo(() => decodeSharedVote(query.get('data')), [query])
   const [screen, setScreen] = useState<Screen>(sharedVote ? 'vote-result' : sharedPoll ? 'poll' : 'home')
@@ -26,6 +26,19 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false)
 
   useEffect(() => {
+    let active = true
+    void getInitialShareQuery().then((initialQuery) => {
+      if (active && initialQuery.get('data') && !query.get('data')) setQuery(initialQuery)
+    })
+    return () => { active = false }
+  }, [query])
+
+  useEffect(() => {
+    if (sharedVote) setScreen('vote-result')
+    else if (sharedPoll) setScreen('poll')
+  }, [sharedPoll, sharedVote])
+
+  useEffect(() => {
     if (!toast) return
     const timer = window.setTimeout(() => setToast(''), 2200)
     return () => window.clearTimeout(timer)
@@ -36,6 +49,7 @@ function App() {
   const goHome = () => {
     setScreen('home')
     setResult(null)
+    setQuery(new URLSearchParams())
     window.history.replaceState({}, '', window.location.pathname)
   }
 
