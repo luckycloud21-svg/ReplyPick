@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { graniteEvent } from '@apps-in-toss/web-framework'
 import { copyText, decodeSharedPoll, decodeSharedVote, getInitialShareQuery, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
 import { sanitizeMessage, validateMessage } from './lib/replyEngine'
@@ -16,7 +17,9 @@ function App() {
   const [query, setQuery] = useState(() => getShareQuery())
   const sharedPoll = useMemo(() => decodeSharedPoll(query.get('data')), [query])
   const sharedVote = useMemo(() => decodeSharedVote(query.get('data')), [query])
-  const [screen, setScreen] = useState<Screen>(sharedVote ? 'vote-result' : sharedPoll ? 'poll' : 'home')
+  const initialScreen: Screen = sharedVote ? 'vote-result' : sharedPoll ? 'poll' : 'home'
+  const [screen, setScreen] = useState<Screen>(initialScreen)
+  const navigationStackRef = useRef<Screen[]>([initialScreen])
   const [message, setMessage] = useState('')
   const [relation, setRelation] = useState<Relation>('직장')
   const [tone, setTone] = useState<Tone>('공손하게')
@@ -26,6 +29,39 @@ function App() {
   const [toast, setToast] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
+  const clearShareRoute = useCallback(() => {
+    setQuery(new URLSearchParams())
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [])
+
+  const goHome = useCallback(() => {
+    navigationStackRef.current = ['home']
+    setScreen('home')
+    setResult(null)
+    clearShareRoute()
+  }, [clearShareRoute])
+
+  const navigateTo = useCallback((nextScreen: Screen) => {
+    const currentScreen = navigationStackRef.current[navigationStackRef.current.length - 1]
+    if (currentScreen === nextScreen) return
+    navigationStackRef.current = [...navigationStackRef.current, nextScreen]
+    setScreen(nextScreen)
+  }, [])
+
+  const goBack = useCallback(() => {
+    if (navigationStackRef.current.length <= 1) return
+
+    const leavingScreen = navigationStackRef.current.pop()
+    const previousScreen = navigationStackRef.current[navigationStackRef.current.length - 1] ?? 'home'
+    setScreen(previousScreen)
+
+    if (leavingScreen === 'result') setResult(null)
+    if (previousScreen === 'home') {
+      setResult(null)
+      clearShareRoute()
+    }
+  }, [clearShareRoute])
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [screen])
@@ -33,15 +69,37 @@ function App() {
   useEffect(() => {
     let active = true
     void getInitialShareQuery().then((initialQuery) => {
-      if (active && initialQuery.get('data') && !query.get('data')) setQuery(initialQuery)
+      if (active && initialQuery.get('data')) {
+        setQuery((currentQuery) => currentQuery.get('data') ? currentQuery : initialQuery)
+      }
     })
     return () => { active = false }
-  }, [query])
+  }, [])
 
   useEffect(() => {
     if (sharedVote) setScreen('vote-result')
     else if (sharedPoll) setScreen('poll')
+    if (sharedVote) navigationStackRef.current = ['vote-result']
+    else if (sharedPoll) navigationStackRef.current = ['poll']
   }, [sharedPoll, sharedVote])
+
+  useEffect(() => {
+    // Apps in Toss blocks the default close behavior while backEvent is subscribed.
+    // Subscribe only when this app has an in-app screen to return to.
+    if (screen === 'home' || navigationStackRef.current.length <= 1) return
+
+    let unsubscribe: (() => void) | undefined
+    try {
+      unsubscribe = graniteEvent.addEventListener('backEvent', {
+        onEvent: goBack,
+        onError: () => trackEvent('back_event_error'),
+      })
+    } catch {
+      // The standalone browser has no Apps in Toss bridge, so native back handling is unavailable.
+    }
+
+    return () => unsubscribe?.()
+  }, [goBack, screen])
 
   useEffect(() => {
     if (!toast) return
@@ -50,13 +108,6 @@ function App() {
   }, [toast])
 
   const showToast = (text: string) => setToast(text)
-
-  const goHome = () => {
-    setScreen('home')
-    setResult(null)
-    setQuery(new URLSearchParams())
-    window.history.replaceState({}, '', window.location.pathname)
-  }
 
   const handleGenerate = (regenerate = false) => {
     if (isGenerating) return
@@ -79,7 +130,7 @@ function App() {
         addHistory(set)
         setHistory(readHistory())
         setResult(set)
-        setScreen('result')
+        navigateTo('result')
         trackGeneration(regenerate)
         trackEvent('generate_success', { source: import.meta.env.VITE_REPLY_API_URL ? 'ai' : 'local-dev' })
       } catch {
@@ -136,18 +187,18 @@ function App() {
     setMessage(set.message ?? '')
     setRelation(set.relation)
     setTone(set.tone)
-    setScreen('result')
+    navigateTo('result')
   }
 
   return <div className="app-shell">
     <div className="app-frame">
       {screen === 'home' && <HomeScreen message={message} setMessage={setMessage} relation={relation} setRelation={setRelation} tone={tone} setTone={setTone} onPaste={handlePaste} onGenerate={() => handleGenerate(false)} isGenerating={isGenerating} />}
-      {screen === 'result' && result && <ResultScreen key={result.id} result={result} onBack={goHome} onCopy={handleCopy} onFavorite={handleFavorite} onShare={handleShare} onRegenerate={() => handleGenerate(true)} isGenerating={isGenerating} favoriteVersion={favoriteVersion} showToast={showToast} />}
-      {screen === 'history' && <HistoryScreen history={history} favorites={readFavorites()} onBack={goHome} onOpen={openHistoryItem} onDelete={(id) => { deleteHistory(id); setHistory(readHistory()); showToast('기록을 삭제했어요.') }} onFavorite={handleFavorite} favoriteVersion={favoriteVersion} />}
-      {screen === 'settings' && <SettingsScreen onBack={goHome} onClear={() => { clearLocalData(); setHistory([]); setFavoriteVersion((v) => v + 1); showToast('기기에 저장된 기록을 모두 지웠어요.') }} />}
+      {screen === 'result' && result && <ResultScreen key={result.id} result={result} onBack={goBack} onCopy={handleCopy} onFavorite={handleFavorite} onShare={handleShare} onRegenerate={() => handleGenerate(true)} isGenerating={isGenerating} favoriteVersion={favoriteVersion} showToast={showToast} />}
+      {screen === 'history' && <HistoryScreen history={history} favorites={readFavorites()} onBack={goBack} onOpen={openHistoryItem} onDelete={(id) => { deleteHistory(id); setHistory(readHistory()); showToast('기록을 삭제했어요.') }} onFavorite={handleFavorite} favoriteVersion={favoriteVersion} />}
+      {screen === 'settings' && <SettingsScreen onBack={goBack} onClear={() => { clearLocalData(); setHistory([]); setFavoriteVersion((v) => v + 1); showToast('기기에 저장된 기록을 모두 지웠어요.') }} />}
       {screen === 'poll' && sharedPoll && <PollScreenV2 question={sharedPoll.question} replies={sharedPoll.replies} onStart={goHome} onCopy={handleCopy} onShareVote={handleShareVote} />}
       {screen === 'vote-result' && sharedVote && <VoteResultScreen vote={sharedVote} onStart={goHome} onCopy={handleCopy} />}
-      {screen !== 'result' && screen !== 'poll' && screen !== 'vote-result' && <BottomNav screen={screen} onHome={goHome} onHistory={() => setScreen('history')} onSettings={() => setScreen('settings')} />}
+      {screen !== 'result' && screen !== 'poll' && screen !== 'vote-result' && <BottomNav screen={screen} onHome={goHome} onHistory={() => navigateTo('history')} onSettings={() => navigateTo('settings')} />}
     </div>
     {toast && <div className="toast" role="status"><Icon name="check" size={17} />{toast}</div>}
   </div>
