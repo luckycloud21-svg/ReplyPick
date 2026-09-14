@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { graniteEvent } from '@apps-in-toss/web-framework'
 import { copyText, decodeSharedPoll, decodeSharedVote, getInitialShareQuery, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
@@ -7,6 +7,8 @@ import { requestReplies } from './lib/replyApi'
 import { addHistory, buildHistorySet, clearLocalData, deleteHistory, formatDate, isFavorite, readFavorites, readHistory, readUsage, toggleFavorite, trackGeneration } from './lib/storage'
 import type { Relation, Reply, ReplySet, Screen, Tone } from './types'
 import { Icon } from './components/Icon'
+import { BannerAd } from './components/BannerAd'
+import { initializeReplyPickAds } from './lib/ads'
 
 const relations: Relation[] = ['직장', '친구', '연인', '가족', '중고거래', '기타']
 const tones: Tone[] = ['공손하게', '친근하게', '짧게', '단호하게', '사과', '거절']
@@ -14,6 +16,7 @@ const relationEmoji: Record<Relation, string> = { 직장: '💼', 친구: '🙌'
 const toneEmoji: Record<Tone, string> = { 공손하게: '🙂', 친근하게: '😊', 짧게: '⚡', 단호하게: '✋', 사과: '🥺', 거절: '🙅' }
 
 function App() {
+  useEffect(() => { void initializeReplyPickAds() }, [])
   const [query, setQuery] = useState(() => getShareQuery())
   const sharedPoll = useMemo(() => decodeSharedPoll(query.get('data')), [query])
   const sharedVote = useMemo(() => decodeSharedVote(query.get('data')), [query])
@@ -254,68 +257,13 @@ function ResultScreen({ result, onCopy, onFavorite, onShare, onRegenerate, isGen
   return <main className="screen result-screen">
     <Header>답장 추천</Header>
     <section className="result-heading"><div className="result-kicker"><span className="result-check"><Icon name="check" size={14} strokeWidth={2.8} /></span>답장 준비 완료</div><h1>바로 보내기 좋은<br /><em>답장 3개</em>예요.</h1><div className="result-meta"><span>{result.relation}</span><i /> <span>{result.tone}</span></div></section>
+    <BannerAd />
     {result.message && <details className="original-message"><summary><Icon name="message" size={16} />받은 메시지 다시 보기<Icon name="chevron-down" size={16} /></summary><p>{result.message}</p></details>}
-    <section className="reply-list">{result.replies.map((reply, index) => <Fragment key={reply.id}><ReplyCard reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />{index === 0 && <BannerAd />}</Fragment>)}</section>
+    <section className="reply-list">{result.replies.map((reply, index) => <ReplyCard key={reply.id} reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />)}</section>
     <div className="result-actions"><button className="share-button" onClick={onShare}><span className="share-icon"><Icon name="send" size={18} /></span><span><strong>친구에게 골라달라고 하기</strong><small>A/B/C 선택지를 공유해요</small></span><Icon name="arrow-right" size={18} /></button><button className="regenerate-button" onClick={onRegenerate} disabled={isGenerating} aria-busy={isGenerating}><Icon name="refresh" size={16} />{isGenerating ? '새로운 답장을 만들고 있어요...' : '다른 답장 3개 보기'}</button></div>
     <div className="safe-note"><Icon name="info" size={15} />받은 메시지와 답장 선택지를 최근 기록에 남겨요. 공유하면 친구에게도 보여요.</div>
     <div className="feedback-box"><span>이번 답장 추천은 어땠나요?</span><div><button aria-pressed={feedback === 'good'} className={feedback === 'good' ? 'selected' : ''} onClick={() => { setFeedback('good'); trackEvent('feedback_submit', { rating: 'good' }); showToast('피드백 고마워요!') }} aria-label="좋아요">👍</button><button aria-pressed={feedback === 'bad'} className={feedback === 'bad' ? 'selected' : ''} onClick={() => { setFeedback('bad'); trackEvent('feedback_submit', { rating: 'bad' }); showToast('더 자연스러운 답장을 만들게요.') }} aria-label="별로예요">👎</button></div></div>
   </main>
-}
-
-type TossRuntime = typeof import('@apps-in-toss/web-framework')
-
-function BannerAd() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [ready, setReady] = useState(false)
-  const [adGroupId, setAdGroupId] = useState<string | null>(null)
-  const [tossRuntime, setTossRuntime] = useState<TossRuntime | null>(null)
-
-  useEffect(() => {
-    let active = true
-    void import('./lib/ads')
-      .then(async (ads) => {
-        const initialized = await ads.initializeReplyPickAds()
-        if (!active || !initialized) return
-        const runtime = await import('@apps-in-toss/web-framework')
-        if (active && runtime.TossAds.attachBanner.isSupported()) {
-          setAdGroupId(ads.REPLY_PICK_AD_GROUP_ID)
-          setTossRuntime(runtime)
-          setReady(true)
-        }
-      })
-      .catch(() => {
-        if (active) setReady(false)
-      })
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    if (!ready || !adGroupId || !tossRuntime || !containerRef.current) return
-    const { TossAds } = tossRuntime
-
-    let attached: { destroy: () => void } | undefined
-    try {
-      attached = TossAds.attachBanner(adGroupId, containerRef.current, {
-        theme: 'light',
-        tone: 'grey',
-        variant: 'card',
-        callbacks: {
-          onAdRendered: () => trackEvent('ad_rendered'),
-          onAdViewable: () => trackEvent('ad_viewable'),
-          onAdClicked: () => trackEvent('ad_clicked'),
-          onNoFill: () => trackEvent('ad_no_fill'),
-          onAdFailedToRender: () => trackEvent('ad_failed'),
-        },
-      })
-    } catch {
-      setReady(false)
-    }
-
-    return () => attached?.destroy()
-  }, [ready, adGroupId, tossRuntime])
-
-  if (!ready) return null
-  return <section className="ad-section" aria-label="광고"><span className="ad-label">AD</span><div ref={containerRef} className="ad-slot" /></section>
 }
 
 function ReplyCard({ reply, index, onCopy, onFavorite, favoriteVersion, recommended }: { reply: Reply; index: number; onCopy: (reply: Reply) => void; onFavorite: (reply: Reply) => void; favoriteVersion: number; recommended: boolean }) {
