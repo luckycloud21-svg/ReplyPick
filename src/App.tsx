@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { graniteEvent } from '@apps-in-toss/web-framework'
 import { copyText, decodeSharedPoll, decodeSharedVote, getInitialShareQuery, getShareQuery, readClipboard, sharePoll, shareVote, trackEvent } from './lib/ait'
 import type { SharedVote } from './lib/ait'
@@ -193,9 +193,9 @@ function App() {
   return <div className="app-shell">
     <div className="app-frame">
       {screen === 'home' && <HomeScreen message={message} setMessage={setMessage} relation={relation} setRelation={setRelation} tone={tone} setTone={setTone} onPaste={handlePaste} onGenerate={() => handleGenerate(false)} isGenerating={isGenerating} />}
-      {screen === 'result' && result && <ResultScreen key={result.id} result={result} onBack={goBack} onCopy={handleCopy} onFavorite={handleFavorite} onShare={handleShare} onRegenerate={() => handleGenerate(true)} isGenerating={isGenerating} favoriteVersion={favoriteVersion} showToast={showToast} />}
-      {screen === 'history' && <HistoryScreen history={history} favorites={readFavorites()} onBack={goBack} onOpen={openHistoryItem} onDelete={(id) => { deleteHistory(id); setHistory(readHistory()); showToast('기록을 삭제했어요.') }} onFavorite={handleFavorite} favoriteVersion={favoriteVersion} />}
-      {screen === 'settings' && <SettingsScreen onBack={goBack} onClear={() => { clearLocalData(); setHistory([]); setFavoriteVersion((v) => v + 1); showToast('기기에 저장된 기록을 모두 지웠어요.') }} />}
+      {screen === 'result' && result && <ResultScreen key={result.id} result={result} onCopy={handleCopy} onFavorite={handleFavorite} onShare={handleShare} onRegenerate={() => handleGenerate(true)} isGenerating={isGenerating} favoriteVersion={favoriteVersion} showToast={showToast} />}
+      {screen === 'history' && <HistoryScreen history={history} favorites={readFavorites()} onStart={goHome} onOpen={openHistoryItem} onDelete={(id) => { deleteHistory(id); setHistory(readHistory()); showToast('기록을 삭제했어요.') }} onFavorite={handleFavorite} favoriteVersion={favoriteVersion} />}
+      {screen === 'settings' && <SettingsScreen onClear={() => { clearLocalData(); setHistory([]); setFavoriteVersion((v) => v + 1); showToast('기기에 저장된 기록을 모두 지웠어요.') }} />}
       {screen === 'poll' && sharedPoll && <PollScreenV2 question={sharedPoll.question} replies={sharedPoll.replies} onStart={goHome} onCopy={handleCopy} onShareVote={handleShareVote} />}
       {screen === 'vote-result' && sharedVote && <VoteResultScreen vote={sharedVote} onStart={goHome} onCopy={handleCopy} />}
       {screen !== 'result' && screen !== 'poll' && screen !== 'vote-result' && <BottomNav screen={screen} onHome={goHome} onHistory={() => navigateTo('history')} onSettings={() => navigateTo('settings')} />}
@@ -204,9 +204,9 @@ function App() {
   </div>
 }
 
-function Header({ children, onBack, action }: { children?: React.ReactNode; onBack?: () => void; action?: React.ReactNode }) {
+function Header({ children, action }: { children?: React.ReactNode; action?: React.ReactNode }) {
   return <header className="topbar">
-    {onBack ? <button className="icon-button" onClick={onBack} aria-label="뒤로가기"><Icon name="arrow-left" /></button> : <div className="brand-mark"><span className="brand-orb"><Icon name="message" size={22} /></span><span>답장픽<span className="brand-english">replypick</span></span></div>}
+    {children ? <div className="topbar-leading" aria-hidden="true" /> : <div className="brand-mark"><span className="brand-orb"><Icon name="message" size={22} /></span><span>답장픽<span className="brand-english">replypick</span></span></div>}
     <div className="topbar-title">{children}</div>
     <div className="topbar-action">{action}</div>
   </header>
@@ -249,17 +249,16 @@ function HomeScreen({ message, setMessage, relation, setRelation, tone, setTone,
   </main>
 }
 
-function ResultScreen({ result, onBack, onCopy, onFavorite, onShare, onRegenerate, isGenerating, favoriteVersion, showToast }: { result: ReplySet; onBack: () => void; onCopy: (reply: Reply) => void; onFavorite: (reply: Reply) => void; onShare: () => void; onRegenerate: () => void; isGenerating: boolean; favoriteVersion: number; showToast: (text: string) => void }) {
+function ResultScreen({ result, onCopy, onFavorite, onShare, onRegenerate, isGenerating, favoriteVersion, showToast }: { result: ReplySet; onCopy: (reply: Reply) => void; onFavorite: (reply: Reply) => void; onShare: () => void; onRegenerate: () => void; isGenerating: boolean; favoriteVersion: number; showToast: (text: string) => void }) {
   const [feedback, setFeedback] = useState<'good' | 'bad' | null>(null)
   return <main className="screen result-screen">
-    <Header onBack={onBack} action={<button className="icon-button" onClick={() => showToast('답장을 보낼 앱에 붙여넣어 주세요.')} aria-label="더보기"><Icon name="more" /></button>}>답장 추천</Header>
+    <Header>답장 추천</Header>
     <section className="result-heading"><div className="result-kicker"><span className="result-check"><Icon name="check" size={14} strokeWidth={2.8} /></span>답장 준비 완료</div><h1>바로 보내기 좋은<br /><em>답장 3개</em>예요.</h1><div className="result-meta"><span>{result.relation}</span><i /> <span>{result.tone}</span></div></section>
     {result.message && <details className="original-message"><summary><Icon name="message" size={16} />받은 메시지 다시 보기<Icon name="chevron-down" size={16} /></summary><p>{result.message}</p></details>}
-    <section className="reply-list">{result.replies.map((reply, index) => <ReplyCard key={reply.id} reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />)}</section>
+    <section className="reply-list">{result.replies.map((reply, index) => <Fragment key={reply.id}><ReplyCard reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />{index === 0 && <BannerAd />}</Fragment>)}</section>
     <div className="result-actions"><button className="share-button" onClick={onShare}><span className="share-icon"><Icon name="send" size={18} /></span><span><strong>친구에게 골라달라고 하기</strong><small>A/B/C 선택지를 공유해요</small></span><Icon name="arrow-right" size={18} /></button><button className="regenerate-button" onClick={onRegenerate} disabled={isGenerating} aria-busy={isGenerating}><Icon name="refresh" size={16} />{isGenerating ? '새로운 답장을 만들고 있어요...' : '다른 답장 3개 보기'}</button></div>
     <div className="safe-note"><Icon name="info" size={15} />받은 메시지와 답장 선택지를 최근 기록에 남겨요. 공유하면 친구에게도 보여요.</div>
     <div className="feedback-box"><span>이번 답장 추천은 어땠나요?</span><div><button aria-pressed={feedback === 'good'} className={feedback === 'good' ? 'selected' : ''} onClick={() => { setFeedback('good'); trackEvent('feedback_submit', { rating: 'good' }); showToast('피드백 고마워요!') }} aria-label="좋아요">👍</button><button aria-pressed={feedback === 'bad'} className={feedback === 'bad' ? 'selected' : ''} onClick={() => { setFeedback('bad'); trackEvent('feedback_submit', { rating: 'bad' }); showToast('더 자연스러운 답장을 만들게요.') }} aria-label="별로예요">👎</button></div></div>
-    <BannerAd />
   </main>
 }
 
@@ -324,17 +323,17 @@ function ReplyCard({ reply, index, onCopy, onFavorite, favoriteVersion, recommen
   return <article className={`reply-card ${recommended ? 'recommended' : ''}`}><div className="reply-card-top"><div className="reply-label"><span className={`reply-letter letter-${index}`}>{String.fromCharCode(65 + index)}</span><div><strong>{reply.label}</strong>{recommended && <span className="recommend-badge">추천</span>}<small>{reply.reason}</small></div></div><button className={`favorite-button ${isFavorite(reply.id) ? 'active' : ''}`} onClick={() => onFavorite(reply)} aria-label="즐겨찾기" aria-pressed={isFavorite(reply.id)}><Icon name="heart" size={20} /></button></div><p className="reply-text">{reply.text}</p><button className="copy-button" onClick={() => onCopy(reply)}><Icon name="copy" size={17} />이 답장 복사</button></article>
 }
 
-function HistoryScreen({ history, favorites, onBack, onOpen, onDelete, onFavorite, favoriteVersion }: { history: ReplySet[]; favorites: Reply[]; onBack: () => void; onOpen: (set: ReplySet) => void; onDelete: (id: string) => void; onFavorite: (reply: Reply) => void; favoriteVersion: number }) {
+function HistoryScreen({ history, favorites, onStart, onOpen, onDelete, onFavorite, favoriteVersion }: { history: ReplySet[]; favorites: Reply[]; onStart: () => void; onOpen: (set: ReplySet) => void; onDelete: (id: string) => void; onFavorite: (reply: Reply) => void; favoriteVersion: number }) {
   void favoriteVersion
   const [tab, setTab] = useState<'recent' | 'favorite'>('recent')
   return <main className="screen history-screen">
-    <Header onBack={onBack}>나의 답장함</Header>
+    <Header>나의 답장함</Header>
     <section className="page-heading"><span className="eyebrow"><Icon name="heart" size={14} />차곡차곡 모아둔 한마디</span><h1>다시 꺼내보고 싶은<br /><em>나의 답장함</em></h1><p>받은 메시지와 마음에 든 답장을 한곳에.</p></section>
     <div className="tab-switch" role="group" aria-label="답장 기록 종류"><button aria-pressed={tab === 'recent'} className={tab === 'recent' ? 'active' : ''} onClick={() => setTab('recent')}><Icon name="clock" size={17} />최근 답장 <span>{history.length}</span></button><button aria-pressed={tab === 'favorite'} className={tab === 'favorite' ? 'active' : ''} onClick={() => setTab('favorite')}><Icon name="heart" size={17} />즐겨찾기 <span>{favorites.length}</span></button></div>
     {tab === 'recent' ? <div className="history-list">{history.length ? history.map((set) => <article className="history-item" key={set.id}>
       <button className="history-open" onClick={() => onOpen(set)}><div className="history-item-top"><span>{formatDate(set.createdAt)}</span><span>{set.relation} · {set.tone}</span><Icon name="arrow-right" size={17} /></div><p className="history-question">{set.message || '받은 메시지가 없는 이전 기록이에요.'}</p><p className="history-reply">{set.replies[0]?.text}</p></button>
       <div className="history-dots"><span>A</span><span>B</span><span>C</span><small>답장 3개가 담겨 있어요</small><button onClick={() => onDelete(set.id)} aria-label="기록 삭제"><Icon name="trash" size={17} /></button></div>
-    </article>) : <EmptyHistory text="첫 답장을 기다리고 있어요" onStart={onBack} />}</div> : <div className="favorite-list">{favorites.length ? favorites.map((reply) => <div className="favorite-item" key={reply.id}><span className="reply-letter letter-1"><Icon name="heart" size={17} /></span><p>{reply.text}<small>{reply.reason}</small></p><button onClick={() => onFavorite(reply)} aria-label="즐겨찾기 해제"><Icon name="heart" size={20} /></button></div>) : <EmptyHistory text="마음에 드는 한마디를 모아보세요" favorite onStart={onBack} />}</div>}
+    </article>) : <EmptyHistory text="첫 답장을 기다리고 있어요" onStart={onStart} />}</div> : <div className="favorite-list">{favorites.length ? favorites.map((reply) => <div className="favorite-item" key={reply.id}><span className="reply-letter letter-1"><Icon name="heart" size={17} /></span><p>{reply.text}<small>{reply.reason}</small></p><button onClick={() => onFavorite(reply)} aria-label="즐겨찾기 해제"><Icon name="heart" size={20} /></button></div>) : <EmptyHistory text="마음에 드는 한마디를 모아보세요" favorite onStart={onStart} />}</div>}
   </main>
 }
 
@@ -342,16 +341,16 @@ function EmptyHistory({ text, favorite, onStart }: { text: string; favorite?: bo
   return <div className="empty-state"><span className="empty-icon"><Icon name={favorite ? 'heart' : 'message'} size={32} /></span><strong>{text}</strong><p>{favorite ? '답장 옆 하트를 누르면 여기에 보관해 드릴게요.' : '함께 만든 답장은 이곳에 차곡차곡 쌓여요.'}</p><button className="empty-start" onClick={onStart}>답장 만들러 가기<Icon name="arrow-right" size={16} /></button></div>
 }
 
-function SettingsScreen({ onBack, onClear }: { onBack: () => void; onClear: () => void }) {
+function SettingsScreen({ onClear }: { onClear: () => void }) {
   const [confirm, setConfirm] = useState(false)
-  return <main className="screen settings-screen"><Header onBack={onBack}>설정</Header><section className="page-heading"><span className="eyebrow">REPLYPICK</span><h1>가볍게, 안전하게</h1><p>로그인 없이 이 기기에만 답장을 보관해요.</p></section><div className="settings-card"><div className="settings-row"><span className="settings-icon blue"><Icon name="warning" size={19} /></span><div><strong>개인정보 안내</strong><p>답장을 만들 때 메시지가 AI 서비스로 전송돼요. 최근 기록과 즐겨찾기는 이 기기에 보관해요.</p></div></div><div className="settings-row"><span className="settings-icon green"><Icon name="check" size={19} /></span><div><strong>자동 전송하지 않아요</strong><p>답장을 직접 확인하고 원하는 메신저에 붙여넣는 방식이에요.</p></div></div></div><section className="danger-section"><div className="section-label">데이터 관리</div>{confirm ? <div className="confirm-card"><strong>저장된 기록을 모두 지울까요?</strong><p>최근 답장과 즐겨찾기가 이 기기에서 삭제돼요.</p><div><button className="ghost-button" onClick={() => setConfirm(false)}>취소</button><button className="danger-button" onClick={() => { onClear(); setConfirm(false) }}>모두 지우기</button></div></div> : <button className="settings-action" onClick={() => setConfirm(true)}><span><Icon name="trash" size={18} />저장된 기록 모두 지우기</span><Icon name="arrow-right" size={17} /></button>}</section><div className="version-note">ReplyPick v0.1 · 앱인토스 비게임 미니앱</div></main>
+  return <main className="screen settings-screen"><Header>설정</Header><section className="page-heading"><span className="eyebrow">REPLYPICK</span><h1>가볍게, 안전하게</h1><p>로그인 없이 이 기기에만 답장을 보관해요.</p></section><div className="settings-card"><div className="settings-row"><span className="settings-icon blue"><Icon name="warning" size={19} /></span><div><strong>개인정보 안내</strong><p>답장을 만들 때 메시지가 AI 서비스로 전송돼요. 최근 기록과 즐겨찾기는 이 기기에 보관해요.</p></div></div><div className="settings-row"><span className="settings-icon green"><Icon name="check" size={19} /></span><div><strong>자동 전송하지 않아요</strong><p>답장을 직접 확인하고 원하는 메신저에 붙여넣는 방식이에요.</p></div></div></div><section className="danger-section"><div className="section-label">데이터 관리</div>{confirm ? <div className="confirm-card"><strong>저장된 기록을 모두 지울까요?</strong><p>최근 답장과 즐겨찾기가 이 기기에서 삭제돼요.</p><div><button className="ghost-button" onClick={() => setConfirm(false)}>취소</button><button className="danger-button" onClick={() => { onClear(); setConfirm(false) }}>모두 지우기</button></div></div> : <button className="settings-action" onClick={() => setConfirm(true)}><span><Icon name="trash" size={18} />저장된 기록 모두 지우기</span><Icon name="arrow-right" size={17} /></button>}</section><div className="version-note">ReplyPick v0.1 · 앱인토스 비게임 미니앱</div></main>
 }
 
 function PollScreen({ question, replies, onStart, onCopy, onShareVote }: { question: string; replies: Reply[]; onStart: () => void; onCopy: (reply: Reply) => void; onShareVote: (question: string, reply: Reply) => Promise<boolean> }) {
   const [selected, setSelected] = useState<number | null>(null)
   const [voted, setVoted] = useState(false)
   const [votes, setVotes] = useState([4, 2, 1])
-  if (!replies.length) return <main className="screen poll-screen"><Header onBack={onStart}>친구의 답장픽</Header><div className="empty-state poll-empty"><span className="empty-icon"><Icon name="warning" size={23} /></span><strong>공유 링크가 만료되었어요.</strong><p>새 답장을 만들어 다시 공유해 주세요.</p><button className="primary-button" onClick={onStart}>나도 답장 골라보기</button></div></main>
+  if (!replies.length) return <main className="screen poll-screen"><Header>친구의 답장픽</Header><div className="empty-state poll-empty"><span className="empty-icon"><Icon name="warning" size={23} /></span><strong>공유 링크가 만료되었어요.</strong><p>새 답장을 만들어 다시 공유해 주세요.</p><button className="primary-button" onClick={onStart}>나도 답장 골라보기</button></div></main>
   const vote = () => {
     if (selected === null) return
     setVotes((current) => current.map((value, index) => index === selected ? value + 1 : value))
@@ -359,7 +358,7 @@ function PollScreen({ question, replies, onStart, onCopy, onShareVote }: { quest
     trackEvent('poll_vote', { selectedIndex: selected })
     void onShareVote(question, replies[selected])
   }
-  return <main className="screen poll-screen"><Header onBack={onStart}>친구의 답장픽</Header><section className="poll-heading"><div className="poll-avatar"><Icon name="message" size={22} /></div><span className="eyebrow">답장 선택 투표</span><h1>이 중 어떤 답장이<br /><em>가장 자연스러워?</em></h1><p>친구가 고르기 어려운 답장 3개를 보냈어요.</p></section><div className="poll-options">{replies.map((reply, index) => <button key={reply.id} aria-pressed={selected === index} disabled={voted} className={`poll-option ${selected === index ? 'selected' : ''}`} onClick={() => !voted && setSelected(index)}><span className={`reply-letter letter-${index}`}>{String.fromCharCode(65 + index)}</span><span className="poll-copy"><strong>{reply.label}</strong><span>{reply.text}</span></span>{voted ? <span className="vote-count">{votes[index]}표</span> : selected === index ? <Icon name="check" size={19} /> : <span className="poll-radio" />}</button>)}</div>{voted ? <div className="voted-card"><Icon name="check" size={18} /><strong>선택을 보냈어요!</strong><p>가장 많은 표를 받은 답장에 한 표 추가했어요.</p>{replies.map((reply, index) => <button key={reply.id} className="voted-copy" onClick={() => onCopy(reply)}><span>{String.fromCharCode(65 + index)} · {reply.text}</span><Icon name="copy" size={15} /></button>)}</div> : <button className="primary-button poll-button" disabled={selected === null} onClick={vote}>이 답장이 제일 좋아요</button>}<button className="text-button poll-start" onClick={onStart}>나도 답장 골라보기 <Icon name="arrow-right" size={15} /></button></main>
+  return <main className="screen poll-screen"><Header>친구의 답장픽</Header><section className="poll-heading"><div className="poll-avatar"><Icon name="message" size={22} /></div><span className="eyebrow">답장 선택 투표</span><h1>이 중 어떤 답장이<br /><em>가장 자연스러워?</em></h1><p>친구가 고르기 어려운 답장 3개를 보냈어요.</p></section><div className="poll-options">{replies.map((reply, index) => <button key={reply.id} aria-pressed={selected === index} disabled={voted} className={`poll-option ${selected === index ? 'selected' : ''}`} onClick={() => !voted && setSelected(index)}><span className={`reply-letter letter-${index}`}>{String.fromCharCode(65 + index)}</span><span className="poll-copy"><strong>{reply.label}</strong><span>{reply.text}</span></span>{voted ? <span className="vote-count">{votes[index]}표</span> : selected === index ? <Icon name="check" size={19} /> : <span className="poll-radio" />}</button>)}</div>{voted ? <div className="voted-card"><Icon name="check" size={18} /><strong>선택을 보냈어요!</strong><p>가장 많은 표를 받은 답장에 한 표 추가했어요.</p>{replies.map((reply, index) => <button key={reply.id} className="voted-copy" onClick={() => onCopy(reply)}><span>{String.fromCharCode(65 + index)} · {reply.text}</span><Icon name="copy" size={15} /></button>)}</div> : <button className="primary-button poll-button" disabled={selected === null} onClick={vote}>이 답장이 제일 좋아요</button>}<button className="text-button poll-start" onClick={onStart}>나도 답장 골라보기 <Icon name="arrow-right" size={15} /></button></main>
 }
 
 function PollScreenV2({ question, replies, onStart, onCopy, onShareVote }: { question: string; replies: Reply[]; onStart: () => void; onCopy: (reply: Reply) => void; onShareVote: (question: string, reply: Reply, index: number) => Promise<boolean> }) {
@@ -378,7 +377,7 @@ function PollScreenV2({ question, replies, onStart, onCopy, onShareVote }: { que
   }
 
   return <main className="screen poll-screen">
-    <Header onBack={onStart}>친구의 답장픽</Header>
+    <Header>친구의 답장픽</Header>
     <section className="poll-question-card"><span className="question-label">친구가 받은 질문</span><p>{question}</p></section>
     <section className="poll-heading"><div className="poll-avatar"><Icon name="message" size={22} /></div><span className="eyebrow">답장 선택 투표</span><h1>이 중 어떤 답장이<br /><em>가장 자연스러워?</em></h1><p>질문을 보고 가장 마음에 드는 답장을 골라주세요.</p></section>
     <div className="poll-options">{replies.map((reply, index) => <button key={reply.id} aria-pressed={selected === index} disabled={voted} className={`poll-option ${selected === index ? 'selected' : ''}`} onClick={() => !voted && setSelected(index)}><span className={`reply-letter letter-${index}`}>{String.fromCharCode(65 + index)}</span><span className="poll-copy"><strong>{reply.label}</strong><span>{reply.text}</span></span>{selected === index ? <Icon name="check" size={19} /> : <span className="poll-radio" />}</button>)}</div>
@@ -389,7 +388,7 @@ function PollScreenV2({ question, replies, onStart, onCopy, onShareVote }: { que
 
 function VoteResultScreen({ vote, onStart, onCopy }: { vote: SharedVote; onStart: () => void; onCopy: (reply: Reply) => void }) {
   return <main className="screen poll-screen">
-    <Header onBack={onStart}>친구의 투표 결과</Header>
+    <Header>친구의 투표 결과</Header>
     <section className="poll-heading"><div className="poll-avatar"><Icon name="check" size={22} /></div><span className="eyebrow">답장 선택 완료</span><h1>친구가 고른<br /><em>답장이 도착했어요.</em></h1><p>친구가 질문을 보고 가장 자연스럽다고 고른 답장이에요.</p></section>
     <section className="vote-result-question"><span className="question-label">질문</span><p>{vote.question}</p></section>
     <article className="vote-result-card"><div className="reply-card-top"><div className="reply-label"><span className={`reply-letter letter-${vote.index}`}>{String.fromCharCode(65 + vote.index)}</span><div><strong>친구의 선택</strong><small>이 답장으로 보내보세요.</small></div></div><Icon name="check" size={20} /></div><p className="reply-text">{vote.reply.text}</p><button className="copy-button" onClick={() => onCopy(vote.reply)}><Icon name="copy" size={17} />이 답장 복사</button></article>
