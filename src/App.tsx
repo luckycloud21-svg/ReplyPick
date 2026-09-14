@@ -257,12 +257,12 @@ function ResultScreen({ result, onCopy, onFavorite, onShare, onRegenerate, isGen
   return <main className="screen result-screen">
     <Header>답장 추천</Header>
     <section className="result-heading"><div className="result-kicker"><span className="result-check"><Icon name="check" size={14} strokeWidth={2.8} /></span>답장 준비 완료</div><h1>바로 보내기 좋은<br /><em>답장 3개</em>예요.</h1><div className="result-meta"><span>{result.relation}</span><i /> <span>{result.tone}</span></div></section>
-    <BannerAd />
     {result.message && <details className="original-message"><summary><Icon name="message" size={16} />받은 메시지 다시 보기<Icon name="chevron-down" size={16} /></summary><p>{result.message}</p></details>}
     <section className="reply-list">{result.replies.map((reply, index) => <ReplyCard key={reply.id} reply={reply} index={index} onCopy={onCopy} onFavorite={onFavorite} favoriteVersion={favoriteVersion} recommended={index === 0} />)}</section>
     <div className="result-actions"><button className="share-button" onClick={onShare}><span className="share-icon"><Icon name="send" size={18} /></span><span><strong>친구에게 골라달라고 하기</strong><small>A/B/C 선택지를 공유해요</small></span><Icon name="arrow-right" size={18} /></button><button className="regenerate-button" onClick={onRegenerate} disabled={isGenerating} aria-busy={isGenerating}><Icon name="refresh" size={16} />{isGenerating ? '새로운 답장을 만들고 있어요...' : '다른 답장 3개 보기'}</button></div>
     <div className="safe-note"><Icon name="info" size={15} />받은 메시지와 답장 선택지를 최근 기록에 남겨요. 공유하면 친구에게도 보여요.</div>
     <div className="feedback-box"><span>이번 답장 추천은 어땠나요?</span><div><button aria-pressed={feedback === 'good'} className={feedback === 'good' ? 'selected' : ''} onClick={() => { setFeedback('good'); trackEvent('feedback_submit', { rating: 'good' }); showToast('피드백 고마워요!') }} aria-label="좋아요">👍</button><button aria-pressed={feedback === 'bad'} className={feedback === 'bad' ? 'selected' : ''} onClick={() => { setFeedback('bad'); trackEvent('feedback_submit', { rating: 'bad' }); showToast('더 자연스러운 답장을 만들게요.') }} aria-label="별로예요">👎</button></div></div>
+    <BannerAd />
   </main>
 }
 
